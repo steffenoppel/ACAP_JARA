@@ -73,6 +73,7 @@ table(ACAP$ACC)
 #########################################################################
 
 JARAout<-tibble()
+SPECIES<-SPECIES[-(1:(length(list.dirs())-1))]   ### if loop is interrupted due to a plotting error retsart without re-running all completed species
 for (sp in SPECIES) {
   obserr<-ACAP %>% filter(Species==sp) %>% summarise(err=mean(ACC))
   X<-ACAP %>% filter(Species==sp) %>%
@@ -121,7 +122,7 @@ for (sp in SPECIES) {
   fit = fit_jara(jarainput =jara.input,save.csvs = T,output.dir = getwd())
   
   # plot all routine output
-  jara_plots(fit,output.dir = getwd())
+  try(jara_plots(fit,output.dir = getwd()), silent=T)
   
   ## RETURN OUTPUT
   out<- X %>% gather(key=site, value=count,-Year) %>%
@@ -160,6 +161,8 @@ for (sp in SPECIES) {
 ##   discarded scratchpad code chunks - necessary because JARA package required debugging
 #########################################################################
 
+jrplot_state
+
 
 
 ### troubleshoot function
@@ -180,73 +183,69 @@ legend.cex=0.9
 legend.pos="right"
 add=FALSE
   
-  cat(paste0("\n","><> jrplot_state() - %change relative to reference year <><","\n"))
-  
-  Par = list(mfrow=c(1,1),mar = c(4, 4, 1, 1), mgp =c(2.5,1,0),mai = c(0.6, 0.6, 0.1, 0.1),mex=0.8, tck = -0.02,cex=plot.cex)
-  if(as.png==TRUE){png(file = paste0(output.dir,"/State_",jara$assessment,"_",jara$scenario,".png"), width = width, height = height,
-                       res = 200, units = "in")}
-  if(add==FALSE) par(Par)
-  
-  pdyn = jara$pop.posterior
-  yrs = 1:ncol(pdyn)
-  nyrs = length(yrs)
-  yr = as.numeric(names(pdyn))
-  if(is.null(ref.yr)) ref.yr = yr[1:3]
-  end.yr = max(jara$yr) 
-  prj.yr = max(jara$pyr)
-  pop.ref = apply(pdyn[,which(yr%in%ref.yr)],1,mean)
-  states =  cbind(pdyn[,which(yr%in%end.yr)]/pop.ref,pdyn[,which(yr%in%prj.yr)]/pop.ref)
-  states[is.nan(states)] <- 0
-  
-  if(is.null(type)){
-    type=ifelse(prj.yr-end.yr<3,"current","both") 
-  }
-  
-  
-  lymax=rymax = lxrange = lxmax =NULL # maximum and range for plotting
-  for(i in 1:2){
-    if(i == 1 & type =="current" | type== "both" |i == 2 & type =="projected"){
-      den = stats::density(states[,i],adjust=2)
-      assign(paste0("xl",i),den$x)
-      assign(paste0("yl",i),den$y)
-      lymax=c(lymax,max(den$y))
-      lxmax = c(lxmax,quantile(states[,i],0.99))
-    }}
-  
-  lxrange = ifelse(lxrange<0,0,lxrange)
-  if(is.null(xlim)) xlim = c(0,max(lxmax,1.1))
-  jcol = c(grey(0.4,0.6),rgb(1,0,0,0.6))
-  plot(0,0,type="n",ylab=ylab,xlab=xlab,xaxt="n",yaxt="n",cex.main=0.9,ylim=c(0,1.22*max(lymax)),xlim=xlim,xaxs="i",yaxs="i",frame=FALSE) 
-  for(i in 2:1){
-    if(i == 1 & type =="current" | type== "both" |i == 2 & type =="projected"){
-      x = get(paste0("xl",i))
-      y = get(paste0("yl",i))
-      xp = x[x>xlim[1] & x<xlim[2]]
-      yp = y[x>xlim[1] & x<xlim[2]]
-      polygon(c(xp,rev(xp)),c(yp,rep(0,length(yp))),col=jcol[i],border=NA)
-      mu = round(median(states[,i]),10)
-      lines(rep(mu,2),c(0,max(lymax*c(1.05,1.0)[i])),col=c(1,2)[i],lwd=1,lty=c(1))
-      text(max(mu,0.05),max(lymax*c(1.11,1.05)[i]),c(end.yr,prj.yr)[i],cex=0.9)
-    }}
-  axis(1,at=seq(0,ceiling(max(states)),0.2),cex.axis=0.9)
-  axis(2,cex.axis=0.9)
-  
-  lines(rep(1,2),c(0,max(lymax*c(1.13,1.0)[1])),col=1,lwd=1,lty=2)
-  text(1,max(lymax*c(1.18)),min((ref.yr)),cex=0.9)
-  
-  cnam = c(paste0("Cur = ",round(median(states[,1]),2)),paste0("Proj = ",round(median(states[,2]),2)))
-  if(type =="current") type.id = 1 
-  if(type =="projected") type.id = 2 
-  if(type =="both") type.id = 1:2 
-  legend(legend.pos,cnam[type.id],pch=15,col=c(jcol),box.col = "white",cex=legend.cex,y.intersp = 0.8,x.intersp = 0.8)
-  mu =apply(states,2,quantile,c(0.5))
-  quants = rbind(mu,HDInterval::hdi(states,credMass=credibility))
-  box()
-  state = NULL
-  state$state = data.frame(State=cnam,year=c(end.yr,prj.yr),median=quants[1,],lci=quants[2,],uci=quants[3,])
-  if(type=="current"){state$prob.pextinct = "Requires projection horizon"} else {
-    state$prob.extinct = sum(ifelse(states[,2]<extinction,1,0))/nrow(states)
-  }
-  
-  if(as.png==TRUE) dev.off()
-  return(state)
+cat(paste0("\n","><> jrplot_state() - %change relative to reference year <><","\n"))
+
+Par = list(mfrow=c(1,1),mar = c(4, 4, 1, 1), mgp =c(2.5,1,0),mai = c(0.6, 0.6, 0.1, 0.1),mex=0.8, tck = -0.02,cex=plot.cex)
+if(as.png==TRUE){png(file = paste0(output.dir,"/State_",jara$assessment,"_",jara$scenario,".png"), width = width, height = height,
+                     res = 200, units = "in")}
+if(add==FALSE) par(Par)
+
+pdyn = jara$pop.posterior
+yrs = 1:ncol(pdyn)
+nyrs = length(yrs)
+yr = as.numeric(names(pdyn))
+if(is.null(ref.yr)) ref.yr = yr[1:3]
+end.yr = max(jara$yr) 
+prj.yr = max(jara$pyr)
+pop.ref = apply(pdyn[,which(yr%in%ref.yr)],1,mean)
+states =  cbind(pdyn[,which(yr%in%end.yr)]/pop.ref,pdyn[,which(yr%in%prj.yr)]/pop.ref)
+states[is.nan(states)] <- 0  ### this is necessary if a population goes extinct to prevent an error in the following loop (missing values)
+if(is.null(type)){
+  type=ifelse(prj.yr-end.yr<3,"current","both") 
+}
+
+
+lymax=rymax = lxrange = lxmax =NULL # maximum and range for plotting
+for(i in 1:2){
+  if(i == 1 & type =="current" | type== "both" |i == 2 & type =="projected"){
+    den = stats::density(states[,i],adjust=2)
+    assign(paste0("xl",i),den$x)
+    assign(paste0("yl",i),den$y)
+    lymax=c(lymax,max(den$y))
+    lxmax = c(lxmax,quantile(states[,i],0.99))
+  }}
+
+lxrange = ifelse(lxrange<0,0,lxrange)
+if(is.null(xlim)) xlim = c(0,max(lxmax,1.1))
+jcol = c(grey(0.4,0.6),rgb(1,0,0,0.6))
+plot(0,0,type="n",ylab=ylab,xlab=xlab,xaxt="n",yaxt="n",cex.main=0.9,ylim=c(0,1.22*max(lymax)),xlim=xlim,xaxs="i",yaxs="i",frame=FALSE) 
+for(i in 2:1){
+  if(i == 1 & type =="current" | type== "both" |i == 2 & type =="projected"){
+    x = get(paste0("xl",i))
+    y = get(paste0("yl",i))
+    xp = x[x>xlim[1] & x<xlim[2]]
+    yp = y[x>xlim[1] & x<xlim[2]]
+    polygon(c(xp,rev(xp)),c(yp,rep(0,length(yp))),col=jcol[i],border=NA)
+    mu = round(median(states[,i]),10)
+    lines(rep(mu,2),c(0,max(lymax*c(1.05,1.0)[i])),col=c(1,2)[i],lwd=1,lty=c(1))
+    text(max(mu,0.05),max(lymax*c(1.11,1.05)[i]),c(end.yr,prj.yr)[i],cex=0.9)
+  }}
+axis(1,at=seq(0,ceiling(max(states)),0.2),cex.axis=0.9)
+axis(2,cex.axis=0.9)
+
+lines(rep(1,2),c(0,max(lymax*c(1.13,1.0)[1])),col=1,lwd=1,lty=2)
+text(1,max(lymax*c(1.18)),min((ref.yr)),cex=0.9)
+
+cnam = c(paste0("Cur = ",round(median(states[,1]),2)),paste0("Proj = ",round(median(states[,2]),2)))
+if(type =="current") type.id = 1 
+if(type =="projected") type.id = 2 
+if(type =="both") type.id = 1:2 
+legend(legend.pos,cnam[type.id],pch=15,col=c(jcol),box.col = "white",cex=legend.cex,y.intersp = 0.8,x.intersp = 0.8)
+mu =apply(states,2,quantile,c(0.5))
+quants = rbind(mu,HDInterval::hdi(states,credMass=credibility))
+box()
+state = NULL
+state$state = data.frame(State=cnam,year=c(end.yr,prj.yr),median=quants[1,],lci=quants[2,],uci=quants[3,])
+if(type=="current"){state$prob.pextinct = "Requires projection horizon"} else {
+  state$prob.extinct = sum(ifelse(states[,2]<extinction,1,0))/nrow(states)
+}
